@@ -1,17 +1,16 @@
-# rip_router
+# udp_transport
 
-## Router table, brodcasting entries and updating them based on informations from other routers.
+## UDP client wchich implement sliding window protocol for file download
 
 ### how to compile:
 >go to src folder and use `make` command
 
 #### how to start router:
->`./router`
-and write information about available interfaces and routers which are connected directly.
+> ./transport <server_ip> <port> <file_name> <size_to_download>
+
+for example:
 ```c
-2
-10.0.1.1/8 distance 3
-192.168.5.43/24 distance 2
+./transport 192.168.56.101 40001 output 10000002
 ```
 
 #### how to clean compiled files:

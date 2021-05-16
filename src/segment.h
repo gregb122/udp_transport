@@ -3,15 +3,16 @@
 #include <stdint.h>
 #include "connection.h"
 
+#define DATA_SIZE 1000
+
 typedef struct in_addr addr;
 
 typedef struct {
     int is_ready;// 1 via or 0 direct 
     int start;
     int size;
-    char *data_to_write;
+    int data_to_write[DATA_SIZE];
 } segment_t;
 
-int construct_segment(int _size, segment_t *rec_out);
-u_int8_t prepare_packet_to_send(segment_t *rec);
-int send_packet(u_int8_t buffer);
+int construct_segment(int _size, int _start, segment_t *seg_out);
+int send_packet(segment_t *seg_out);

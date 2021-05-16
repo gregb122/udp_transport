@@ -2,62 +2,84 @@
 
 #include "segments_window.h"
 
-int is_address_in(record *record, addr addess){
-    return (record->network_ip_with_mask.network_addr.s_addr 
-            == (addess.s_addr & to_mask(record->network_ip_with_mask.mask_len)));
-}
-
-/* args 1 size of table list, 2 out for table */
-int construct_table(int _size, routers_table *table){
-    table->record_tab = malloc(_size * sizeof(record));
-    table->count = 0;
-    table->max_s = _size;
-    return 0;
-}
-
-int delete_table(routers_table *table){
-    free(table->record_tab);
-    return 0;
-}
-
-int add_record(routers_table *table, record *r){
-    if (table->count > table->max_s){
-        table->record_tab = realloc(table->record_tab, table->max_s * 2);
-        table->max_s = table->max_s * 2;
-    }
-    table->record_tab[table->count] = *r;
-    table->count++;
-    return 0;
-}
-
-int rm_record(routers_table *table, int idx){
-    if ((idx <= table->count) && idx >= 0){
-        table->record_tab[idx] = table->record_tab[--table->count];
-        return 0;
-    }
-    else {
-        return 1;//when idx out of range
-    }
-}
-
-int find_network_record(routers_table *table, addr _network_ip){
-    for(int i = 0; i < table->count; i++){
-        if(is_address_in(&(table->record_tab[i]), _network_ip)){
+int find_segment(segments_window_t *window, int _start){
+    for(int i = 0; i < WINDOW_LEN; i++){
+        if(window->window_tab[i].start == _start){
             return i;
         }
     }
-    return -1; // ip not found
+    return -1; // not found
 }
 
-int set_unreachable(routers_table *table, int idx){
-    table->record_tab[idx].reachable = 0;
-    return 0;
-}
+int construct_window_from(segments_window_t *seg_out, int construct_start){
+    for(int i=construct_start; i < WINDOW_LEN; i++){
+        int full_size = seg_out->bytes_to_download;
 
-int display_table(routers_table *table){
-    for(int i = 0; i < table->count; i++){
-        display_record(&(table->record_tab[i]));
+        if(full_size < DATA_SIZE){
+            construct_segment(full_size, seg_out->next_start, &seg_out->window_tab[i]);
+            seg_out->bytes_to_download = 0;
+        } else {
+            construct_segment(DATA_SIZE, seg_out->next_start, &seg_out->window_tab[i]);
+            seg_out->bytes_to_download -= DATA_SIZE;
+            seg_out->next_start += DATA_SIZE;
+        }
     }
     return 0;
 }
 
+/* args 1 size of table list, 2 out for table */
+int construct_window(int bytes_to_download, segments_window_t *seg_out){
+    seg_out->bytes_to_download = bytes_to_download;
+    seg_out->next_start = 0;
+    construct_window_from(seg_out, 0);
+    return 0;
+}
+
+int handle_data_packet(segments_window_t *window, char buffer_data[IP_MAXPACKET + 1]){
+    int             start;
+    int             size;
+    sscanf(buffer_data, "DATA %d %d", &start, &size);
+    int idx = find_segment(window, start);
+    if (idx < 0){
+        return 0;
+    }
+    if (window->window_tab[idx].is_ready){
+        return 0;
+    }
+    char *start_of_data = strchr(buffer_data, '\n');
+    memcpy(window->window_tab[idx].data_to_write, start_of_data + 1, size);
+    window->window_tab[idx].is_ready = 1;
+    return 0;
+}
+
+int perform_window_sends(segments_window_t *window){
+    for(int i=0; i < WINDOW_LEN; i++){
+        send_packet(&window->window_tab[i]);
+    }
+    return EXIT_SUCCESS;
+}
+
+int write_and_move_window_if_possible(segments_window_t *window, FILE *file, int full_size){
+    int i = -1;
+    while(i + 1 < WINDOW_LEN && window->window_tab[i + 1].is_ready && window->window_tab[i + 1].size != 0){
+        i++;
+        printf ("%.3f%% done\n", ((float) window->window_tab[i].start/ (float) full_size)*(float)100);
+        if(fwrite(window->window_tab[i].data_to_write,
+            sizeof(char),
+            window->window_tab[i].size,
+            file) == 0){
+                fprintf(stderr, "fwrite error: %s\n", strerror(errno)); 
+		        return EXIT_FAILURE;
+        }
+    }
+    if (i >= 0){
+        if(i >= WINDOW_LEN - 1){
+            construct_window_from(window, 0);
+            return EXIT_SUCCESS;
+        }
+        memmove(&window->window_tab[0], &window->window_tab[i + 1], (WINDOW_LEN - i - 1) * sizeof(segment_t));
+        
+        construct_window_from(window, WINDOW_LEN - i - 1);
+    }
+    return EXIT_SUCCESS;
+}

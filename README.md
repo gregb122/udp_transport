@@ -5,7 +5,7 @@
 ### how to compile:
 >go to src folder and use `make` command
 
-#### how to start router:
+#### how to start client:
 > ./transport <server_ip> <port> <file_name> <size_to_download>
 
 for example:

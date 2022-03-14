@@ -1,6 +1,6 @@
 # udp_transport
 
-## UDP client wchich implement sliding window protocol for file download
+## UDP client which implement sliding window protocol for file download
 
 ### how to compile:
 >go to src folder and use `make` command
@@ -16,5 +16,5 @@ for example:
 #### how to clean compiled files:
 >You can use `make clean` command.
 
-#### how to clean compiled files and delete executable file:
+#### how to clean compiled files and delete executable files:
 >You can use `make distclean` command.
